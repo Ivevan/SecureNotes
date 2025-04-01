@@ -5,16 +5,23 @@
  */
 
 import React, { useEffect } from 'react';
-import { StatusBar, SafeAreaView, StyleSheet } from 'react-native';
+import { StatusBar, SafeAreaView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import NoteList from './src/components/NoteList';
 import DatabaseService from './src/services/DatabaseService';
+
+// Set to true to reset the database on next app start (for development)
+const RESET_DATABASE_ON_START = false;
 
 function App(): React.JSX.Element {
   // Initialize database on app start
   useEffect(() => {
     const initDb = async () => {
       try {
-        await DatabaseService.init();
+        if (RESET_DATABASE_ON_START) {
+          await DatabaseService.resetDatabase();
+        } else {
+          await DatabaseService.init();
+        }
         console.log('Database initialized successfully');
       } catch (error) {
         console.error('Failed to initialize database:', error);
