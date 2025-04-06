@@ -1,97 +1,94 @@
-This is a new [**React Native**](https://reactnative.dev) project, bootstrapped using [`@react-native-community/cli`](https://github.com/react-native-community/cli).
+# SecureNotes
 
-# Getting Started
+A secure note-taking app built with React Native utilizing MVP architecture and encrypted local storage.
 
-> **Note**: Make sure you have completed the [Set Up Your Environment](https://reactnative.dev/docs/set-up-your-environment) guide before proceeding.
+## Security Features
 
-## Step 1: Start Metro
+- **Encryption**: All notes are encrypted using AES-256-CBC encryption before storing in SQLite
+- **Secure Key Management**: Encryption keys are stored securely in the device keychain
+- **Biometric Authentication**: (Optional) Supports fingerprint/face authentication to access the app
+- **Secure Salt Handling**: Generates and stores secure random salt for key derivation
 
-First, you will need to run **Metro**, the JavaScript build tool for React Native.
+## Architecture
 
-To start the Metro dev server, run the following command from the root of your React Native project:
+The app follows the Model-View-Presenter (MVP) pattern:
 
-```sh
-# Using npm
-npm start
+- **Model**: Encrypted data stored in SQLite database
+- **View**: React Native components (NoteList.tsx)
+- **Presenter**: Business logic that connects views to data (NotePresenter.ts)
 
-# OR using Yarn
-yarn start
-```
+## Setup Instructions
 
-## Step 2: Build and run your app
+1. Clone the repository
+2. Install dependencies: `npm install`
+3. (iOS only) Install CocoaPods: `cd ios && pod install && cd ..`
+4. Run the app:
+   - Android: `npm run android`
+   - iOS: `npm run ios`
 
-With Metro running, open a new terminal window/pane from the root of your React Native project, and use one of the following commands to build and run your Android or iOS app:
+## Usage
 
-### Android
+### Basic Features
 
-```sh
-# Using npm
-npm run android
+- View a list of all notes
+- Create a new note with title and content
+- Edit existing notes
+- Delete notes
 
-# OR using Yarn
-yarn android
-```
+### Security Settings
 
-### iOS
+- Enable/disable biometric authentication from the settings menu (gear icon)
+- The app automatically encrypts all note data before storage
+- Encryption keys are securely stored in the device keychain
 
-For iOS, remember to install CocoaPods dependencies (this only needs to be run on first clone or after updating native deps).
+## Verification Steps
 
-The first time you create a new project, run the Ruby bundler to install CocoaPods itself:
+To verify the security implementations:
 
-```sh
-bundle install
-```
+### Encryption Verification
 
-Then, and every time you update your native dependencies, run:
+1. Add a note in the app
+2. Use a SQLite browser to examine the database file
+3. Confirm that title and content are stored in encrypted form
 
-```sh
-bundle exec pod install
-```
+### Biometric Authentication
 
-For more information, please visit [CocoaPods Getting Started guide](https://guides.cocoapods.org/using/getting-started.html).
+1. Enable biometric authentication in the settings
+2. Close and reopen the app
+3. Verify that authentication is required to access notes
 
-```sh
-# Using npm
-npm run ios
+### Key Management
 
-# OR using Yarn
-yarn ios
-```
+1. Use the app to create and view notes
+2. Check the device keychain (using a keychain viewer or debugging tools)
+3. Verify the presence of SecureNotes encryption keys
 
-If everything is set up correctly, you should see your new app running in the Android Emulator, iOS Simulator, or your connected device.
+## Troubleshooting
 
-This is one way to run your app — you can also build it directly from Android Studio or Xcode.
+If you encounter issues with encryption or database access:
 
-## Step 3: Modify your app
+1. Enable the database reset flag (`RESET_DATABASE_ON_START` in App.tsx) to true
+2. Run the app once to reset the database and encryption keys
+3. Set the flag back to false and restart the app
 
-Now that you have successfully run the app, let's make changes!
+## Libraries Used
 
-Open `App.tsx` in your text editor of choice and make some changes. When you save, your app will automatically update and reflect these changes — this is powered by [Fast Refresh](https://reactnative.dev/docs/fast-refresh).
+- React Native
+- TypeScript
+- react-native-sqlite-storage
+- react-native-keychain
+- react-native-aes-crypto
+- @react-native-async-storage/async-storage
 
-When you want to forcefully reload, for example to reset the state of your app, you can perform a full reload:
+## Notes for Testing
 
-- **Android**: Press the <kbd>R</kbd> key twice or select **"Reload"** from the **Dev Menu**, accessed via <kbd>Ctrl</kbd> + <kbd>M</kbd> (Windows/Linux) or <kbd>Cmd ⌘</kbd> + <kbd>M</kbd> (macOS).
-- **iOS**: Press <kbd>R</kbd> in iOS Simulator.
+- In development, you can reset the database and encryption keys by setting the `RESET_DATABASE_ON_START` constant to `true` in App.tsx
+- The app includes error handling to gracefully handle decryption failures
+- Biometric authentication can be bypassed if the device doesn't support it
 
-## Congratulations! :tada:
+## Security Considerations
 
-You've successfully run and modified your React Native App. :partying_face:
-
-### Now what?
-
-- If you want to add this new React Native code to an existing application, check out the [Integration guide](https://reactnative.dev/docs/integration-with-existing-apps).
-- If you're curious to learn more about React Native, check out the [docs](https://reactnative.dev/docs/getting-started).
-
-# Troubleshooting
-
-If you're having issues getting the above steps to work, see the [Troubleshooting](https://reactnative.dev/docs/troubleshooting) page.
-
-# Learn More
-
-To learn more about React Native, take a look at the following resources:
-
-- [React Native Website](https://reactnative.dev) - learn more about React Native.
-- [Getting Started](https://reactnative.dev/docs/environment-setup) - an **overview** of React Native and how setup your environment.
-- [Learn the Basics](https://reactnative.dev/docs/getting-started) - a **guided tour** of the React Native **basics**.
-- [Blog](https://reactnative.dev/blog) - read the latest official React Native **Blog** posts.
-- [`@facebook/react-native`](https://github.com/facebook/react-native) - the Open Source; GitHub **repository** for React Native.
+- The app uses secure storage for encryption keys
+- All data is encrypted before being stored in SQLite
+- Biometric authentication adds an additional layer of security
+- Salt for key derivation is randomly generated and securely stored

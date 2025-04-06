@@ -1,4 +1,5 @@
 import SQLite, { SQLiteDatabase } from 'react-native-sqlite-storage';
+import EncryptionService from './EncryptionService';
 
 // Enable SQLite debugging in development
 SQLite.DEBUG(false);
@@ -12,9 +13,19 @@ export interface Note {
   updatedAt?: number;
 }
 
+export interface EncryptedNote {
+  id?: number;
+  titleEncrypted: string;
+  titleIv: string;
+  contentEncrypted: string;
+  contentIv: string;
+  createdAt: number;
+  updatedAt: number;
+}
+
 class DatabaseService {
   private database: SQLiteDatabase | null = null;
-  private readonly DATABASE_NAME = 'SecureNotes_Plain.db'; // New database name to avoid conflicts
+  private readonly DATABASE_NAME = 'SecureNotes.db';
   private readonly TABLE_NAME = 'notes';
 
   /**
@@ -45,8 +56,10 @@ class DatabaseService {
     const query = `
       CREATE TABLE IF NOT EXISTS ${this.TABLE_NAME} (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        title TEXT NOT NULL,
-        content TEXT NOT NULL,
+        titleEncrypted TEXT NOT NULL,
+        titleIv TEXT NOT NULL,
+        contentEncrypted TEXT NOT NULL,
+        contentIv TEXT NOT NULL,
         createdAt INTEGER NOT NULL,
         updatedAt INTEGER NOT NULL
       )
@@ -66,7 +79,7 @@ class DatabaseService {
   }
 
   /**
-   * Save a note - stores in the database
+   * Save a note - encrypts and stores in the database
    */
   async saveNote(note: Note): Promise<number> {
     if (!this.database) {
@@ -74,21 +87,38 @@ class DatabaseService {
     }
 
     const timestamp = Date.now();
+    
+    // Encrypt the title and content
+    const { encrypted: titleEncrypted, iv: titleIv } = await EncryptionService.encrypt(note.title);
+    const { encrypted: contentEncrypted, iv: contentIv } = await EncryptionService.encrypt(note.content);
+
+    const encryptedNote: EncryptedNote = {
+      titleEncrypted,
+      titleIv,
+      contentEncrypted,
+      contentIv,
+      createdAt: note.createdAt || timestamp,
+      updatedAt: timestamp,
+    };
 
     if (note.id) {
       // Update existing note
       const updateQuery = `
         UPDATE ${this.TABLE_NAME}
-        SET title = ?,
-            content = ?,
+        SET titleEncrypted = ?,
+            titleIv = ?,
+            contentEncrypted = ?,
+            contentIv = ?,
             updatedAt = ?
         WHERE id = ?
       `;
 
       await this.database!.executeSql(updateQuery, [
-        note.title,
-        note.content,
-        timestamp,
+        encryptedNote.titleEncrypted,
+        encryptedNote.titleIv,
+        encryptedNote.contentEncrypted,
+        encryptedNote.contentIv,
+        encryptedNote.updatedAt,
         note.id,
       ]);
 
@@ -97,18 +127,22 @@ class DatabaseService {
       // Insert new note
       const insertQuery = `
         INSERT INTO ${this.TABLE_NAME} (
-          title,
-          content,
+          titleEncrypted,
+          titleIv,
+          contentEncrypted,
+          contentIv,
           createdAt,
           updatedAt
-        ) VALUES (?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?)
       `;
 
       const [result] = await this.database!.executeSql(insertQuery, [
-        note.title,
-        note.content,
-        timestamp,
-        timestamp,
+        encryptedNote.titleEncrypted,
+        encryptedNote.titleIv,
+        encryptedNote.contentEncrypted,
+        encryptedNote.contentIv,
+        encryptedNote.createdAt,
+        encryptedNote.updatedAt,
       ]);
 
       return result.insertId!;
@@ -116,7 +150,7 @@ class DatabaseService {
   }
 
   /**
-   * Get a single note by ID
+   * Get a single note by ID - decrypts the note data
    */
   async getNote(id: number): Promise<Note | null> {
     if (!this.database) {
@@ -130,11 +164,12 @@ class DatabaseService {
       return null;
     }
 
-    return results.rows.item(0) as Note;
+    const encryptedNote = results.rows.item(0) as EncryptedNote;
+    return this.decryptNote(encryptedNote);
   }
 
   /**
-   * Get all notes
+   * Get all notes - decrypts all note data
    */
   async getAllNotes(): Promise<Note[]> {
     if (!this.database) {
@@ -146,8 +181,14 @@ class DatabaseService {
 
     const notes: Note[] = [];
     for (let i = 0; i < results.rows.length; i++) {
-      const note = results.rows.item(i) as Note;
-      notes.push(note);
+      const encryptedNote = results.rows.item(i) as EncryptedNote;
+      try {
+        const note = await this.decryptNote(encryptedNote);
+        notes.push(note);
+      } catch (error) {
+        console.error(`Error decrypting note id ${encryptedNote.id}:`, error);
+        // Skip this note if decryption fails
+      }
     }
 
     return notes;
@@ -166,6 +207,34 @@ class DatabaseService {
   }
 
   /**
+   * Helper method to decrypt a note
+   */
+  private async decryptNote(encryptedNote: EncryptedNote): Promise<Note> {
+    try {
+      const title = await EncryptionService.decrypt(
+        encryptedNote.titleEncrypted,
+        encryptedNote.titleIv
+      );
+      
+      const content = await EncryptionService.decrypt(
+        encryptedNote.contentEncrypted,
+        encryptedNote.contentIv
+      );
+
+      return {
+        id: encryptedNote.id,
+        title,
+        content,
+        createdAt: encryptedNote.createdAt,
+        updatedAt: encryptedNote.updatedAt,
+      };
+    } catch (error) {
+      console.error('Error decrypting note:', error);
+      throw new Error('Failed to decrypt note data');
+    }
+  }
+
+  /**
    * Reset the database for development purposes
    * WARNING: This will delete all notes
    */
@@ -178,6 +247,9 @@ class DatabaseService {
       // Drop the notes table
       const dropQuery = `DROP TABLE IF EXISTS ${this.TABLE_NAME}`;
       await this.database!.executeSql(dropQuery);
+      
+      // Reset encryption keys
+      await EncryptionService.resetEncryptionKey();
       
       // Create a fresh table
       await this.createTables();
